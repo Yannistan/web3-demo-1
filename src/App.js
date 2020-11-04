@@ -9,6 +9,14 @@ const web3Reducer = (state, action) => {
       return { ...state, isWeb3: action.isWeb3 }
     case 'SET_enabled':
       return { ...state, isEnabled: action.isEnabled }
+    case 'SET_account':
+      return { ...state, account: action.account }
+    case 'SET_provider':
+      return { ...state, provider: action.provider }
+    case 'SET_network':
+      return { ...state, network: action.network }
+    case 'SET_balance':
+      return { ...state, balance: action.balance }
     default:
       throw new Error(`Unhandled action ${action.type} in web3Reducer`)
   }
@@ -17,6 +25,10 @@ const web3Reducer = (state, action) => {
 const initialWeb3State = {
   isWeb3: false,
   isEnabled: false,
+  account: ethers.constants.AddressZero,
+  provider: null,
+  network: null,
+  balance: '0',
 }
 
 function App() {
@@ -31,7 +43,7 @@ function App() {
     }
   }, [])
 
-  //Check if Metamask is Enabled
+  //Check if Metamask is Enabled and get account
   useEffect(() => {
     const connect2MetaMask = async () => {
       try {
@@ -39,6 +51,7 @@ function App() {
           method: 'eth_requestAccounts',
         })
         dispatch({ type: 'SET_enabled', isEnabled: true })
+        dispatch({ type: 'SET_account', account: accounts[0] })
       } catch (e) {
         console.log('Error:', e)
         dispatch({ type: 'SET_enabled', isEnabled: false })
@@ -49,7 +62,30 @@ function App() {
     }
   }, [state.isWeb3])
 
-  useEffect(() => {}, [state.isEnabled])
+  // Connect to provider
+  useEffect(() => {
+    const connect2Provider = async () => {
+      try {
+        const provider = new ethers.providers.Web3Provider(window.ethereum)
+        dispatch({ type: 'SET_provider', provider: provider })
+        // https://docs.ethers.io/v5/api/providers/provider/#Provider-getBalance
+        const network = await provider.getNetwork()
+        dispatch({ type: 'SET_network', network: network })
+        // https://docs.ethers.io/v5/api/providers/provider/#Provider-getBalance
+        const _balance = await provider.getBalance(state.account)
+        // https://docs.ethers.io/v5/api/utils/display-logic/#utils-formatEther
+        const balance = ethers.utils.formatEther(_balance)
+        dispatch({ type: 'SET_balance', balance: balance })
+      } catch (e) {
+        dispatch({ type: 'SET_network', network: initialWeb3State.network })
+        dispatch({ type: 'SET_balance', balance: initialWeb3State.balance })
+      }
+    }
+
+    if (state.isEnabled && state.account !== ethers.constants.AddressZero) {
+      connect2Provider()
+    }
+  }, [state.isEnabled, state.account])
 
   return (
     <>
@@ -61,6 +97,14 @@ function App() {
         <Text>
           MetaMask status: {state.isEnabled ? 'connected' : 'disconnected'}
         </Text>
+        {state.isEnabled && <Text>account: {state.account}</Text>}
+        <Text>balance: {state.balance}</Text>
+        {state.network && (
+          <>
+            <Text>Network name: {state.network.name}</Text>
+            <Text>Network id: {state.network.chainId}</Text>
+          </>
+        )}
       </VStack>
     </>
   )
